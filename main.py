@@ -11,6 +11,7 @@ from transformers import pipeline, set_seed
 import random
 import json
 import os
+import names
 
 # Imports the token from token.txt
 with open("token.txt", "r") as token_file:
@@ -28,6 +29,10 @@ with open("owner.txt", "r") as owner_file:
 with open("bad_words.txt", "r") as bad_words_file:
     BAD_WORDS = bad_words_file.read().strip().split("\n")
 
+# Imports a list of prompts from prompts.txt
+with open("prompts.txt", "r") as prompts_file:
+    PROMPTS = prompts_file.read().strip().split("\n")
+
 # Sets the seed for the random number generator
 set_seed(random.randint(0, 1000000))
 
@@ -36,12 +41,12 @@ class Respond_to_message(commands.Cog):
     A class which contains the bot's commands
     """
 
-    def __init__(self, bot, context_string):
+    def __init__(self, bot):
         self.bot = bot
-        self.context_string = context_string
         self.model = pipeline('text-generation', model='gpt2')
 
-    @commands.command(name="generate_response")
+
+    @commands.command(name="generate_response", help="Generates a response to a message", aliases=["gr"])
     async def generate_response(self, ctx, *, message: str):
         """
         Generates a response to the given message
@@ -50,44 +55,36 @@ class Respond_to_message(commands.Cog):
         :return: None
         """
         
+        # Imports a list of prompts from prompts.txt
+        with open("prompts.txt", "r") as prompts_file:
+            PROMPTS = prompts_file.read().strip().split("\n")
+
         # Gets the channel id of the channel the message was sent in
         channel_id = ctx.channel.id
         # If the channel id is in the list of channel ids, generate a response and respond to the message
         if str(channel_id) in CHANNEL_IDS:
-            # Generates a response
-            response = generate_response(message, self.context_string, self.model)
-            # Responds to the message
-            await ctx.send(response)
+            async with ctx.channel.typing():
+                # Generates a response
+                response = generate_response(message, self.model)
+                # Responds to the message
+                await ctx.send(response)
         # If the channel id is not in the list of channel ids, do nothing
         else:
             pass
-    
-    # A method which allows the owner to change the context string
-    @commands.command(name="change_context")
-    async def change_context(self, ctx, *, context_string: str):
-        """
-        Changes the context string
-        :param ctx: The context of the command
-        :param context_string: The new context string
-        :return: None
-        """
-        
-        # Check if the user's id is the owner's id
-        if str(ctx.author.id) == OWNER_ID:
-            # Change the context string
-            self.context_string = context_string
-            # Send a message to the user
-            await ctx.send("Context string changed")
 
-def generate_response(message: str, context_string: str, the_pipeline: pipeline = pipeline) -> str:
+def generate_response(message: str, the_pipeline: pipeline = pipeline) -> str:
     """
     Generates a response to the given message
     :param message: The message to respond to
     :param the_pipeline: The pipeline to use for the generation
     :return: The generated response
     """
+
     # Creates a dictionary with the message and the context
-    full_context_string = context_string.replace("INPUT", message)
+    full_context_string = random.choice(PROMPTS).replace("INPUT", message).replace("\\n", "\n")
+
+    while "NAME" in full_context_string:
+        full_context_string = full_context_string.replace("NAME", names.get_first_name(), 1)
 
     # Generates a response using the model
     response = the_pipeline(full_context_string, max_length=100, num_return_sequences=1)
@@ -106,7 +103,7 @@ def generate_response(message: str, context_string: str, the_pipeline: pipeline 
         response = "I don't know what to say"
     
     if(contains_bad_words(response)):
-        return generate_response(message, context_string, the_pipeline)
+        return generate_response(message, random.choice(PROMPTS), the_pipeline)
 
     # Returns the response
     return response
@@ -129,7 +126,7 @@ def setup(bot):
     :param bot: The bot to set up
     :return: None
     """
-    bot.add_cog(Respond_to_message(bot, "Me: \"INPUT\"\nBot: \""))
+    bot.add_cog(Respond_to_message(bot))
 
 if __name__ == "__main__":
     # Sets up the bot
