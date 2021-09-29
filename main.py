@@ -72,7 +72,7 @@ class Respond_to_message(commands.Cog):
         else:
             pass
 
-def generate_response(message: str, the_pipeline: pipeline = pipeline) -> str:
+def generate_response(message: str, the_pipeline: pipeline) -> str:
     """
     Generates a response to the given message
     :param message: The message to respond to
@@ -103,7 +103,7 @@ def generate_response(message: str, the_pipeline: pipeline = pipeline) -> str:
         response = "I don't know what to say"
     
     if(contains_bad_words(response)):
-        return generate_response(message, random.choice(PROMPTS), the_pipeline)
+        return generate_response(message, the_pipeline)
 
     # Returns the response
     return response
