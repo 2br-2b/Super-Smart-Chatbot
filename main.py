@@ -5,6 +5,7 @@ The bot should import the token from token.txt
 The bot should import the list of channels (CHANNEL_IDS) from channels.txt
 """
 
+import discord
 from discord.ext import commands
 from transformers import pipeline, set_seed
 import random
@@ -22,6 +23,10 @@ with open("channels.txt", "r") as channels_file:
 # Imports the owner's id from owner.txt
 with open("owner.txt", "r") as owner_file:
     OWNER_ID = owner_file.read().strip()
+
+# Imports a list of bad words from bad_words.txt
+with open("bad_words.txt", "r") as bad_words_file:
+    BAD_WORDS = bad_words_file.read().strip().split("\n")
 
 # Sets the seed for the random number generator
 set_seed(random.randint(0, 1000000))
@@ -68,7 +73,7 @@ class Respond_to_message(commands.Cog):
         """
         
         # Check if the user's id is the owner's id
-        if ctx.author.id == OWNER_ID:
+        if str(ctx.author.id) == OWNER_ID:
             # Change the context string
             self.context_string = context_string
             # Send a message to the user
@@ -97,9 +102,26 @@ def generate_response(message: str, context_string: str, the_pipeline: pipeline 
 
     response = response[:response.find("\"")]
 
+    if(response == ""):
+        response = "I don't know what to say"
+    
+    if(contains_bad_words(response)):
+        return generate_response(message, context_string, the_pipeline)
+
     # Returns the response
     return response
 
+
+def contains_bad_words(response: str) -> bool:
+    """
+    Checks if the response contains a bad word
+    :param response: The response to check
+    :return: True if the response contains a bad word, False otherwise
+    """
+    for word in BAD_WORDS:
+        if word in response:
+            return True
+    return False
 
 def setup(bot):
     """
@@ -109,10 +131,10 @@ def setup(bot):
     """
     bot.add_cog(Respond_to_message(bot, "Me: \"INPUT\"\nBot: \""))
 
-
 if __name__ == "__main__":
     # Sets up the bot
     bot = commands.Bot(command_prefix="!")
     setup(bot)
     # Starts the bot
     bot.run(TOKEN)
+
