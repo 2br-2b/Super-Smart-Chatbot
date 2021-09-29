@@ -12,6 +12,7 @@ import random
 import json
 import os
 import names
+from better_profanity import profanity
 
 # Imports the token from token.txt
 with open("token.txt", "r") as token_file:
@@ -25,16 +26,17 @@ with open("channels.txt", "r") as channels_file:
 with open("owner.txt", "r") as owner_file:
     OWNER_ID = owner_file.read().strip()
 
-# Imports a list of bad words from bad_words.txt
-with open("bad_words.txt", "r") as bad_words_file:
-    BAD_WORDS = bad_words_file.read().strip().split("\n")
-
 # Imports a list of prompts from prompts.txt
 with open("prompts.txt", "r") as prompts_file:
     PROMPTS = prompts_file.read().strip().split("\n")
 
-# Sets the seed for the random number generator
+# Sets the seed for the transformers library
 set_seed(random.randint(0, 1000000))
+
+# Add censor words to the profanity filter from a file
+with open("bad_words.txt", "r") as bad_words_file:
+    BAD_WORDS = bad_words_file.read().strip().split("\n")
+profanity.add_censor_words(BAD_WORDS)
 
 class Respond_to_message(commands.Cog):
     """
@@ -73,6 +75,7 @@ class Respond_to_message(commands.Cog):
         :param message: The message to respond to
         :return: None
         """
+
         # If the message is in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
         # It should not respond to its own messages
         if str(message.channel.id) in CHANNEL_IDS and message.author.id != self.bot.user.id:
@@ -81,6 +84,28 @@ class Respond_to_message(commands.Cog):
                 response = generate_response(message.content, self.model)
                 # Responds to the message
                 await message.channel.send(response)
+
+    # A command which send a message in a channel whose ID is mentioned in the command
+    @commands.command(name="send_message", help="Sends a message in a channel whose ID is mentioned in the command", aliases=["sm"])
+    async def send_message(self, ctx, channel_id: int, *, message: str):
+        """
+        Sends a message in a channel whose ID is mentioned in the command
+        :param ctx: The context of the command
+        :param channel_id: The channel to send the message in
+        :param message: The message to send
+        :return: None
+        """
+
+        if str(channel_id) not in CHANNEL_IDS:
+            return
+
+        # Make sure that the message was sent by the bot owner
+        if ctx.author.id != OWNER_ID:
+            return
+
+        # Sends a message in a channel whose ID is mentioned in the command
+        channel = self.bot.get_channel(channel_id)
+        await channel.send("message")
 
 def generate_response(message: str, the_pipeline: pipeline, recursion_count: int = 0) -> str:
     """
@@ -104,7 +129,7 @@ def generate_response(message: str, the_pipeline: pipeline, recursion_count: int
 
     response = response[0]['generated_text']
 
-    if(contains_bad_words(response.lower())):
+    if(contains_bad_words(response)):
         return generate_response(message, the_pipeline, recursion_count + 1)
 
     # Append the response to responses.txt
@@ -123,21 +148,13 @@ def generate_response(message: str, the_pipeline: pipeline, recursion_count: int
 
 
 def contains_bad_words(response: str) -> bool:
-    
-    # Imports a list of bad words from bad_words.txt
-    with open("bad_words.txt", "r") as bad_words_file:
-        BAD_WORDS = bad_words_file.read().strip().split("\n")
-    
     """
     Checks if the response contains a bad word
     :param response: The response to check
     :return: True if the response contains a bad word, False otherwise
     """
-    for word in BAD_WORDS:
-        if word in response:
-            return True
-    return False
-
+    return profanity.contains_profanity(response)
+    
 def setup(bot):
     """
     Sets up the bot
