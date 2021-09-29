@@ -59,26 +59,39 @@ class Respond_to_message(commands.Cog):
         with open("prompts.txt", "r") as prompts_file:
             PROMPTS = prompts_file.read().strip().split("\n")
 
-        # Gets the channel id of the channel the message was sent in
-        channel_id = ctx.channel.id
-        # If the channel id is in the list of channel ids, generate a response and respond to the message
-        if str(channel_id) in CHANNEL_IDS:
-            async with ctx.channel.typing():
-                # Generates a response
-                response = generate_response(message, self.model)
-                # Responds to the message
-                await ctx.reply(response)
-        # If the channel id is not in the list of channel ids, do nothing
-        else:
-            pass
+        async with ctx.channel.typing():
+            # Generates a response
+            response = generate_response(message, self.model)
+            # Responds to the message
+            await ctx.reply(response)
 
-def generate_response(message: str, the_pipeline: pipeline) -> str:
+    # On each new message in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """
+        On each new message in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
+        :param message: The message to respond to
+        :return: None
+        """
+        # If the message is in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
+        # It should not respond to its own messages
+        if str(message.channel.id) in CHANNEL_IDS and message.author.id != self.bot.user.id:
+            async with message.channel.typing():
+                # Generates a response
+                response = generate_response(message.content, self.model)
+                # Responds to the message
+                await message.channel.send(response)
+
+def generate_response(message: str, the_pipeline: pipeline, recursion_count: int = 0) -> str:
     """
     Generates a response to the given message
     :param message: The message to respond to
     :param the_pipeline: The pipeline to use for the generation
     :return: The generated response
     """
+
+    if recursion_count > 10:
+        return "Error: could not generate a proper response!"
 
     # Creates a dictionary with the message and the context
     full_context_string = random.choice(PROMPTS).replace("INPUT", message).replace("\\n", "\n")
@@ -92,7 +105,7 @@ def generate_response(message: str, the_pipeline: pipeline) -> str:
     response = response[0]['generated_text']
 
     if(contains_bad_words(response.lower())):
-        return generate_response(message, the_pipeline)
+        return generate_response(message, the_pipeline, recursion_count + 1)
 
     # Append the response to responses.txt
     with open("responses.txt", "a") as responses_file:
@@ -103,13 +116,18 @@ def generate_response(message: str, the_pipeline: pipeline) -> str:
     response = response[:response.find("\"")]
 
     if(response == ""):
-        return generate_response(message, the_pipeline)
+        return generate_response(message, the_pipeline, recursion_count + 1)
 
     # Returns the response
     return response
 
 
 def contains_bad_words(response: str) -> bool:
+    
+    # Imports a list of bad words from bad_words.txt
+    with open("bad_words.txt", "r") as bad_words_file:
+        BAD_WORDS = bad_words_file.read().strip().split("\n")
+    
     """
     Checks if the response contains a bad word
     :param response: The response to check
