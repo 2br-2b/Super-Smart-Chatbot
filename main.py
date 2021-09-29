@@ -67,7 +67,7 @@ class Respond_to_message(commands.Cog):
                 # Generates a response
                 response = generate_response(message, self.model)
                 # Responds to the message
-                await ctx.send(response)
+                await ctx.reply(response)
         # If the channel id is not in the list of channel ids, do nothing
         else:
             pass
@@ -91,6 +91,9 @@ def generate_response(message: str, the_pipeline: pipeline) -> str:
 
     response = response[0]['generated_text']
 
+    if(contains_bad_words(response.lower())):
+        return generate_response(message, the_pipeline)
+
     # Append the response to responses.txt
     with open("responses.txt", "a") as responses_file:
         responses_file.write(response + "\n---\n")
@@ -100,9 +103,6 @@ def generate_response(message: str, the_pipeline: pipeline) -> str:
     response = response[:response.find("\"")]
 
     if(response == ""):
-        response = "I don't know what to say"
-    
-    if(contains_bad_words(response)):
         return generate_response(message, the_pipeline)
 
     # Returns the response
