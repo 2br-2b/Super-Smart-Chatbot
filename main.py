@@ -1,9 +1,8 @@
 """
 A discord bot which responds to messages by generating a response using a GPT model.
 When a message is sent in a channel with a channel id in the list CHANNEL_IDS, the bot will generate a response and respond to the message
-The bot should train itself on the messages it has already seen
 The bot should import the token from token.txt
-The bot should import the list of channels from channels.txt
+The bot should import the list of channels (CHANNEL_IDS) from channels.txt
 """
 
 from discord.ext import commands
@@ -20,16 +19,22 @@ with open("token.txt", "r") as token_file:
 with open("channels.txt", "r") as channels_file:
     CHANNEL_IDS = channels_file.read().strip().split("\n")
 
+# Imports the owner's id from owner.txt
+with open("owner.txt", "r") as owner_file:
+    OWNER_ID = owner_file.read().strip()
+
 # Sets the seed for the random number generator
-set_seed(42)
+set_seed(random.randint(0, 1000000))
 
 class Respond_to_message(commands.Cog):
     """
     A class which contains the bot's commands
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot, context_string):
         self.bot = bot
+        self.context_string = context_string
+        self.model = pipeline('text-generation', model='gpt2')
 
     @commands.command(name="generate_response")
     async def generate_response(self, ctx, *, message: str):
@@ -39,18 +44,35 @@ class Respond_to_message(commands.Cog):
         :param message: The message to respond to
         :return: None
         """
+        
         # Gets the channel id of the channel the message was sent in
         channel_id = ctx.channel.id
         # If the channel id is in the list of channel ids, generate a response and respond to the message
-        if channel_id in CHANNEL_IDS:
+        if str(channel_id) in CHANNEL_IDS:
             # Generates a response
-            response = generate_response(message)
+            response = generate_response(message, self.context_string, self.model)
             # Responds to the message
             await ctx.send(response)
         # If the channel id is not in the list of channel ids, do nothing
         else:
             pass
-
+    
+    # A method which allows the owner to change the context string
+    @commands.command(name="change_context")
+    async def change_context(self, ctx, *, context_string: str):
+        """
+        Changes the context string
+        :param ctx: The context of the command
+        :param context_string: The new context string
+        :return: None
+        """
+        
+        # Check if the user's id is the owner's id
+        if ctx.author.id == OWNER_ID:
+            # Change the context string
+            self.context_string = context_string
+            # Send a message to the user
+            await ctx.send("Context string changed")
 
 def generate_response(message: str, context_string: str, the_pipeline: pipeline = pipeline) -> str:
     """
@@ -63,9 +85,20 @@ def generate_response(message: str, context_string: str, the_pipeline: pipeline 
     full_context_string = context_string.replace("INPUT", message)
 
     # Generates a response using the model
-    response = the_pipeline(full_context_string, max_length=200, num_return_sequences=1)
+    response = the_pipeline(full_context_string, max_length=100, num_return_sequences=1)
+
+    response = response[0]['generated_text']
+
+    # Append the response to responses.txt
+    with open("responses.txt", "a") as responses_file:
+        responses_file.write(response + "\n---\n")
+
+    response = response[len(full_context_string):]
+
+    response = response[:response.find("\"")]
+
     # Returns the response
-    return response[0]['generated_text']
+    return response
 
 
 def setup(bot):
@@ -74,7 +107,7 @@ def setup(bot):
     :param bot: The bot to set up
     :return: None
     """
-    bot.add_cog(Respond_to_message(bot))
+    bot.add_cog(Respond_to_message(bot, "Me: \"INPUT\"\nBot: \""))
 
 
 if __name__ == "__main__":
@@ -83,4 +116,3 @@ if __name__ == "__main__":
     setup(bot)
     # Starts the bot
     bot.run(TOKEN)
-    
