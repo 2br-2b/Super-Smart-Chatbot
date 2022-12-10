@@ -146,4 +146,4 @@ async def on_ready():
     print("Started!")
     
 # Starts the bot
-bot.run(TOKEN)
+bot.run(TOKEN, log_handler=handler)
