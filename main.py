@@ -9,10 +9,9 @@ import discord
 from discord.ext import commands
 from transformers import pipeline, set_seed
 import random
-import json
-import os
 import names
 from better_profanity import profanity
+import asyncio
 
 # Imports the token from token.txt
 with open("token.txt", "r") as token_file:
@@ -20,7 +19,7 @@ with open("token.txt", "r") as token_file:
 
 # Imports the list of channels from channels.txt
 with open("channels.txt", "r") as channels_file:
-    CHANNEL_IDS = channels_file.read().strip().split("\n")
+    CHANNEL_IDS = [int(i) for i in channels_file.read().strip().split("\n")]
 
 # Imports the owner's id from owner.txt
 with open("owner.txt", "r") as owner_file:
@@ -32,11 +31,6 @@ with open("prompts.txt", "r") as prompts_file:
 
 # Sets the seed for the transformers library
 set_seed(random.randint(0, 1000000))
-
-# Add censor words to the profanity filter from a file
-with open("bad_words.txt", "r") as bad_words_file:
-    BAD_WORDS = bad_words_file.read().strip().split("\n")
-profanity.add_censor_words(BAD_WORDS)
 
 class Respond_to_message(commands.Cog):
     """
@@ -67,45 +61,26 @@ class Respond_to_message(commands.Cog):
             # Responds to the message
             await ctx.reply(response)
 
-    # On each new message in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
+    # The bot will respond to the most recent message in any of the channels listed
     @commands.Cog.listener()
     async def on_message(self, message):
         """
-        On each new message in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
+        The bot will respond to any messages in CHANNEL_IDS
         :param message: The message to respond to
         :return: None
         """
+        
+        if message.author == self.bot.user:
+            return
 
-        # If the message is in a channel whose ID is in the list CHANNEL_IDS, the bot will generate a response and respond to the message
-        # It should not respond to its own messages
-        if str(message.channel.id) in CHANNEL_IDS and message.author.id != self.bot.user.id:
+        c_id = message.channel.id
+        if c_id in CHANNEL_IDS:
             async with message.channel.typing():
                 # Generates a response
                 response = generate_response(message.content, self.model)
                 # Responds to the message
-                await message.channel.send(response)
+                await message.reply(response)
 
-    # A command which send a message in a channel whose ID is mentioned in the command
-    @commands.command(name="send_message", help="Sends a message in a channel whose ID is mentioned in the command", aliases=["sm"])
-    async def send_message(self, ctx, channel_id: int, *, message: str):
-        """
-        Sends a message in a channel whose ID is mentioned in the command
-        :param ctx: The context of the command
-        :param channel_id: The channel to send the message in
-        :param message: The message to send
-        :return: None
-        """
-
-        if str(channel_id) not in CHANNEL_IDS:
-            return
-
-        # Make sure that the message was sent by the bot owner
-        if ctx.author.id != OWNER_ID:
-            return
-
-        # Sends a message in a channel whose ID is mentioned in the command
-        channel = self.bot.get_channel(channel_id)
-        await channel.send("message")
 
 def generate_response(message: str, the_pipeline: pipeline, recursion_count: int = 0) -> str:
     """
@@ -119,7 +94,7 @@ def generate_response(message: str, the_pipeline: pipeline, recursion_count: int
         return "Error: could not generate a proper response!"
 
     # Creates a dictionary with the message and the context
-    full_context_string = random.choice(PROMPTS).replace("INPUT", message).replace("\\n", "\n")
+    full_context_string = random.choice(PROMPTS).replace("INPUT", profanity.censor(message)).replace("\\n", "\n")
 
     while "NAME" in full_context_string:
         full_context_string = full_context_string.replace("NAME", names.get_first_name(), 1)
@@ -154,19 +129,21 @@ def contains_bad_words(response: str) -> bool:
     :return: True if the response contains a bad word, False otherwise
     """
     return profanity.contains_profanity(response)
+
+
+
+print("hi")
+# Sets up the bot
+intents = discord.Intents.default()
+intents.guilds = True
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    await bot.add_cog(Respond_to_message(bot))
+    asyncio.create_task(bot.tree.sync())
+    print("Started!")
     
-def setup(bot):
-    """
-    Sets up the bot
-    :param bot: The bot to set up
-    :return: None
-    """
-    bot.add_cog(Respond_to_message(bot))
-
-if __name__ == "__main__":
-    # Sets up the bot
-    bot = commands.Bot(command_prefix="!")
-    setup(bot)
-    # Starts the bot
-    bot.run(TOKEN)
-
+# Starts the bot
+bot.run(TOKEN)

@@ -2,3 +2,4 @@ discord.py
 names
 transformers
 better_profanity
+tensorflow
