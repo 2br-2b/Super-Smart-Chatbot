@@ -12,6 +12,9 @@ import random
 import names
 from better_profanity import profanity
 import asyncio
+import logging
+import functools
+import threading
 
 # Imports the token from token.txt
 with open("token.txt", "r") as token_file:
@@ -40,6 +43,7 @@ class Respond_to_message(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.model = pipeline('text-generation', model='gpt2')
+        self.loop = asyncio.get_event_loop()
 
 
     @commands.command(name="generate_response", help="Generates a response to a message", aliases=["gr"])
@@ -72,15 +76,23 @@ class Respond_to_message(commands.Cog):
         
         if message.author == self.bot.user:
             return
+        
+        
+        t = threading.Thread(target=bf1, args=(self.loop,message.content, message, self.model,))
+        t.start()
 
-        c_id = message.channel.id
-        if c_id in CHANNEL_IDS or message.channel.type == discord.ChannelType.private:
-            async with message.channel.typing():
-                # Generates a response
-                response = generate_response(message.content, self.model)
-                # Responds to the message
-                await message.reply(response)
+def bf1(loop, *args):
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(blocking_func(*args))
 
+async def blocking_func(text:str, replyable:discord.Message, model):
+    if replyable.channel.id in CHANNEL_IDS or replyable.channel.type == discord.ChannelType.private:
+        async with replyable.channel.typing():
+            # Generates a response
+            response = generate_response(replyable.content, self.model)
+            # Responds to the message
+            await replyable.reply(response)
+    
 
 def generate_response(message: str, the_pipeline: pipeline, recursion_count: int = 0) -> str:
     """
@@ -100,7 +112,7 @@ def generate_response(message: str, the_pipeline: pipeline, recursion_count: int
         full_context_string = full_context_string.replace("NAME", names.get_first_name(), 1)
 
     # Generates a response using the model
-    response = the_pipeline(full_context_string, max_length=100, num_return_sequences=1)
+    response = the_pipeline(full_context_string, max_length=1024, num_return_sequences=1, handle_long_generation = "hole")
 
     response = response[0]['generated_text']
 
@@ -145,7 +157,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     await bot.add_cog(Respond_to_message(bot))
-    asyncio.create_task(bot.tree.sync())
+    await bot.tree.sync()
     print("Started!")
     try:
         import winsound
