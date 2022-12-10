@@ -74,7 +74,7 @@ class Respond_to_message(commands.Cog):
             return
 
         c_id = message.channel.id
-        if c_id in CHANNEL_IDS:
+        if c_id in CHANNEL_IDS or message.channel.type == discord.ChannelType.private:
             async with message.channel.typing():
                 # Generates a response
                 response = generate_response(message.content, self.model)
