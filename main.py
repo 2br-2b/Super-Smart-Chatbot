@@ -144,6 +144,14 @@ async def on_ready():
     await bot.add_cog(Respond_to_message(bot))
     asyncio.create_task(bot.tree.sync())
     print("Started!")
+    try:
+        import winsound
+        duration = 1000  # milliseconds
+        freq = 440  # Hz
+        winsound.Beep(freq, duration)
+    except Exception:
+        print("no beep")
+
     
 # Starts the bot
 bot.run(TOKEN, log_handler=handler)
