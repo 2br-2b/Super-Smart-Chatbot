@@ -12,6 +12,7 @@ import random
 import names
 from better_profanity import profanity
 import asyncio
+import logging
 
 # Imports the token from token.txt
 with open("token.txt", "r") as token_file:
